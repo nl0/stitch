@@ -222,6 +222,24 @@ exports.Package = class Package
       callback new Error "no compiler for '.#{extension}' files"
 
 
+
+  # Tree walking
+  # ------------
+  #
+  # This section is about recursively walking a particular filesystem tree and
+  # gathering all files underneath.
+
+  # Walk the directory and collect all files. Invoke the callback with
+  # (err, files). The files array is sorted.
+  getFilesInTree: (directory, cb) ->
+    files = []
+
+    iterator  = (file) -> files.push file
+    finalizer = (err)  -> if err then cb(err) else cb null, files.sort()
+
+    @walkTree directory, iterator, finalizer
+
+
   # Recursively walk the directory, invoking the iterator once for each file
   # that is found. If at any point an error is encountered, the finalizer is
   # called with the error in its first argument. If the tree walk completed
@@ -249,17 +267,6 @@ exports.Package = class Package
             next()
 
       async.forEach files, iter, finalizer
-
-
-  # Recursivly walk the directory and collect all files. Invoke the callback
-  # with (err, files). The files array is sorted.
-  getFilesInTree: (directory, cb) ->
-    files = []
-
-    iterator  = (file) -> files.push file
-    finalizer = (err)  -> if err then cb(err) else cb null, files.sort()
-
-    @walkTree directory, iterator, finalizer
 
 
 
