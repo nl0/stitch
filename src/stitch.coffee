@@ -47,6 +47,10 @@ exports.Package = class Package
     @mtimeCache   = {}
     @compileCache = {}
 
+
+  # Compile the package and invoke the callback with the result. The callback
+  # will be given two arguments, (err, source). Source is the compiled package
+  # as a string.
   compile: (callback) ->
     async.parallel [
       @compileDependencies
@@ -55,10 +59,13 @@ exports.Package = class Package
       if err then callback err
       else callback null, parts.join("\n")
 
+
+  # Dependencies are treated as plaintext files and are not compiled. They are
+  # simply prepended to the result. Note that no particular ordering is
+  # guaranteed for those files!
   compileDependencies: (callback) =>
-    async.map @dependencies, fs.readFile, (err, dependencySources) =>
-      if err then callback err
-      else callback null, dependencySources.join("\n")
+    async.map @dependencies, fs.readFile, (err, deps) ->
+      if err then callback(err) else callback null, deps.join "\n"
 
   compileSources: (callback) =>
     async.reduce @paths, {}, _.bind(@gatherSourcesFromPath, @), (err, sources) =>
@@ -183,6 +190,10 @@ exports.Package = class Package
             return callback null, sourcePath.slice base.length
         callback new Error "#{path} isn't in the require path"
 
+
+  # Compile the file at `path` and invoke the callback with (err, source),
+  # where `source` is the compiled source as string. If enabled through the
+  # options, the compiled source is cached.
   compileFile: (path, callback) ->
     extension = extname(path).slice(1)
 
