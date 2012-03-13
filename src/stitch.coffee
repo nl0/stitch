@@ -68,7 +68,7 @@ exports.Package = class Package
       if err then callback(err) else callback null, deps.join "\n"
 
   compileSources: (callback) =>
-    async.reduce @paths, {}, _.bind(@gatherSourcesFromPath, @), (err, sources) =>
+    async.reduce @paths, {}, @gatherSourcesFromPath, (err, sources) =>
       return callback err if err
 
       result = """
@@ -149,18 +149,18 @@ exports.Package = class Package
           res.end source
 
 
-  gatherSourcesFromPath: (sources, sourcePath, callback) ->
+  gatherSourcesFromPath: (sources, sourcePath, callback) =>
     fs.stat sourcePath, (err, stat) =>
       return callback err if err
 
       if stat.isDirectory()
         @getFilesInTree sourcePath, (err, paths) =>
           return callback err if err
-          async.reduce paths, sources, _.bind(@gatherCompilableSource, @), callback
+          async.reduce paths, sources, @gatherCompilableSource, callback
       else
         @gatherCompilableSource sources, sourcePath, callback
 
-  gatherCompilableSource: (sources, path, callback) ->
+  gatherCompilableSource: (sources, path, callback) =>
     if @compilers[extname(path).slice(1)]
       @getRelativePath path, (err, relativePath) =>
         return callback err if err
