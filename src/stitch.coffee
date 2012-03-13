@@ -4,28 +4,35 @@ fs    = require 'fs'
 
 {extname, join, normalize} = require 'path'
 
-exports.compilers = compilers =
-  js: (module, filename) ->
-    content = fs.readFileSync filename, 'utf8'
+
+
+# Return a function which wraps the content in a custom compiler. The compiler
+# is given the raw file contents (in utf8) and is expected to return the
+# compiled source.
+customCompiler = (fn) -> (module, filename) ->
+    content = fn fs.readFileSync filename, 'utf8'
     module._compile content, filename
+
+
+
+# The list of all compilers that we support. Out of the box only pure
+# javascript is supported. But if coffee-script or eco are installed we know
+# how to compile those as well.
+exports.compilers = compilers =
+  js: customCompiler (x) -> x
+
 
 try
   CoffeeScript = require 'coffee-script'
-  compilers.coffee = (module, filename) ->
-    content = CoffeeScript.compile fs.readFileSync filename, 'utf8'
-    module._compile content, filename
+  compilers.coffee = customCompiler CoffeeScript.compile
 catch err
 
 try
   eco = require 'eco'
   if eco.precompile
-    compilers.eco = (module, filename) ->
-      content = eco.precompile fs.readFileSync filename, 'utf8'
-      module._compile "module.exports = #{content}", filename
+    compilers.eco = customCompiler (x) -> "module.exports = #{eco.precompile x}"
   else
-    compilers.eco = (module, filename) ->
-      content = eco.compile fs.readFileSync filename, 'utf8'
-      module._compile content, filename
+    compilers.eco = customCompiler eco.compile
 catch err
 
 
