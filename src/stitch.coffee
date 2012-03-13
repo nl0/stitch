@@ -210,37 +210,46 @@ exports.Package = class Package
     else
       callback new Error "no compiler for '.#{extension}' files"
 
-  walkTree: (directory, callback) ->
+
+  # Recursively walk the directory, invoking the iterator once for each file
+  # that is found. If at any point an error is encountered, the finalizer is
+  # called with the error in its first argument. If the tree walk completed
+  # without errors the finalizer is called with no arguments.
+  walkTree: (directory, iterator, finalizer) ->
     fs.readdir directory, (err, files) =>
-      return callback err if err
+      return finalizer err if err
 
-      async.forEach files, (file, next) =>
+      # The function that is called for each dirent. The first argument is the
+      # dirent, the second a callback that has to be invoked when the function
+      # is finished with its asynchronous operations.
+      iter = (file, next) =>
         return next() if file.match /^\./
+
         filename = join directory, file
-
         fs.stat filename, (err, stats) =>
-          @mtimeCache[filename] = stats?.mtime?.toString()
+          return next err if err
 
-          if !err and stats.isDirectory()
-            @walkTree filename, (err, filename) ->
-              if filename
-                callback err, filename
-              else
-                next()
+          @mtimeCache[filename] = stats.mtime.toString()
+
+          if stats.isDirectory()
+            @walkTree filename, iterator, next
           else
-            callback err, filename
+            iterator filename
             next()
-      , callback
 
-  getFilesInTree: (directory, callback) ->
+      async.forEach files, iter, finalizer
+
+
+  # Recursivly walk the directory and collect all files. Invoke the callback
+  # with (err, files). The files array is sorted.
+  getFilesInTree: (directory, cb) ->
     files = []
-    @walkTree directory, (err, filename) ->
-      if err
-        callback err
-      else if filename
-        files.push filename
-      else
-        callback err, files.sort()
+
+    iterator  = (file) -> files.push file
+    finalizer = (err)  -> if err then cb(err) else cb null, files.sort()
+
+    @walkTree directory, iterator, finalizer
+
 
 
 exports.createPackage = (config) ->

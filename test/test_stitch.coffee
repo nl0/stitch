@@ -63,11 +63,7 @@ module.exports =
   "walk tree": (test) ->
     test.expect fixtureCount
 
-    defaultPackage.walkTree fixtures, (err, file) ->
-      if file
-        test.ok file
-      else
-        test.done()
+    defaultPackage.walkTree fixtures, test.ok, test.done
 
   "get files in tree": (test) ->
     test.expect 2
