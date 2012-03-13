@@ -6,6 +6,12 @@ fs    = require 'fs'
 
 
 
+# Node does not export what the correct path separator is for the current
+# platform. Another way to get it is join("x","x")[1].
+SEPARATOR = if process.platform is 'win32' then '\\' else '/'
+
+
+
 # Return a function which wraps the content in a custom compiler. The compiler
 # is given the raw file contents (in utf8) and is expected to return the
 # compiled source.
@@ -166,17 +172,20 @@ exports.Package = class Package
         return callback err if err
 
         @compileFile path, (err, source) ->
-          if err then callback err
-          else
-            extension = extname relativePath
-            key       = relativePath.slice(0, -extension.length)
-            sources[key] =
-              filename: relativePath
-              source:   source
-            callback err, sources
+          return callback err if err
+
+          extension    = extname relativePath
+          key          = relativePath.slice(0, -extension.length)
+          sources[key] = { filename: relativePath, source: source }
+          callback err, sources
     else
       callback null, sources
 
+
+  # Return the relative path of `path` to any of the base paths that make up
+  # this package. The relative path will be the path that the modules inside
+  # the package can use to require() this file. The relative path is
+  # normalized to only contain forward slashes, even on windows.
   getRelativePath: (path, callback) ->
     fs.realpath path, (err, sourcePath) =>
       return callback err if err
@@ -185,9 +194,16 @@ exports.Package = class Package
         return callback err if err
 
         for expandedPath in expandedPaths
-          base = expandedPath + "/"
+          # Append the path separator so we only match exact path prefixes.
+          base = expandedPath + SEPARATOR
+
+          # If `base` is a prefix of the `sourcePath`, then we found our file.
+          # Strip the base from the source path and we get the relative path.
+          # Also make sure to replace all backslashes with forward slashes.
           if sourcePath.indexOf(base) is 0
-            return callback null, sourcePath.slice base.length
+            relativePath = sourcePath.slice(base.length).replace /\\/g, "/"
+            return callback null, relativePath
+
         callback new Error "#{path} isn't in the require path"
 
 
