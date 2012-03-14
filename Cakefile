@@ -14,7 +14,6 @@ task 'build', 'Build lib/ from src/', ->
   build()
 
 task 'test', 'Run tests', ->
-  build ->
-    process.chdir __dirname
-    {reporters} = require 'nodeunit'
-    reporters.default.run ['test']
+  process.chdir __dirname
+  {reporters} = require 'nodeunit'
+  reporters.default.run ['test']
