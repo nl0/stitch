@@ -12,7 +12,7 @@ fixtureCount = 20
 
 defaultOptions =
   identifier: "testRequire"
-  paths:      [fixtures]
+  paths:      [fixtures, fixtureRoot + '/file.coffee']
 defaultPackage = stitch.createPackage defaultOptions
 
 additionalOptions =

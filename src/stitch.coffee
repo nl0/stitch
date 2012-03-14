@@ -228,8 +228,11 @@ exports.Package = class Package
         return callback err if err
 
         for expandedPath in expandedPaths
-          # Append the path separator so we only match exact path prefixes.
-          base = expandedPath + SEPARATOR
+          # If the path is a directory, append the path separator to it. This
+          # is to avoid matching a directory with a file with the same name.
+          base = expandedPath
+          if fs.statSync(expandedPath).isDirectory()
+            base += SEPARATOR
 
           # If `base` is a prefix of the `sourcePath`, then we found our file.
           # Strip the base from the source path and we get the relative path.
