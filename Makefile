@@ -1,15 +1,15 @@
 
-all: lib/stitch.js
+all: compile
 
-lib/stitch.js: src/stitch.coffee
+compile: src/stitch.coffee src/middleware.coffee
 	./node_modules/.bin/coffee -c -o lib/ src/
 
 .PHONY: test
 test:
 	./node_modules/.bin/nodeunit test/
 
-publish: lib/stitch.js
+publish: compile
 	npm publish
 
-install: lib/stitch.js
+install: compile
 	npm install

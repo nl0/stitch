@@ -323,5 +323,6 @@ exports.Package = class Package
 
 
 
+exports.middleware = require './middleware'
 exports.createPackage = (config) ->
   new Package config
