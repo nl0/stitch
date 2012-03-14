@@ -150,10 +150,12 @@ exports.Package = class Package
         (function(/*! Stitch !*/) {
           if (!this.#{@identifier}) {
             var modules = {}, cache = {}, require = function(name, root) {
-              var path = expand(root, name), module = cache[path], fn;
-              if (module) {
+              var fn, module, path = expand(root, name),
+                altPath = expand(path, './index');
+
+              if (module = cache[path] || cache[altPath]) {
                 return module.exports;
-              } else if (fn = modules[path] || modules[path = expand(path, './index')]) {
+              } else if (fn = modules[path] || modules[path = altPath]) {
                 module = {id: path, exports: {}};
                 try {
                   cache[path] = module;
