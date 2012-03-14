@@ -1,0 +1,10 @@
+.npmignore
+.gitignore
+
+Makefile
+README.md
+LICENSE
+
+src/
+test/
+test/fixtures/default/.dotfile.coffee
