@@ -1,7 +1,6 @@
-async = require 'async'
-fs    = require 'fs'
-
-{extname, join, normalize} = require 'path'
+{ readFileSync, readFile, stat, statSync, realpath, readdir } = require 'fs'
+{ parallel, map, forEach } = require 'async'
+{ extname, join } = require 'path'
 
 
 
@@ -23,7 +22,7 @@ extend = (obj, args...) ->
 # is given the raw file contents (in utf8) and is expected to return the
 # compiled source.
 customCompiler = (fn) -> (module, filename) ->
-    content = fn fs.readFileSync filename, 'utf8'
+    content = fn readFileSync filename, 'utf8'
     module._compile content, filename
 
 
@@ -69,14 +68,14 @@ exports.Package = class Package
   # as a string.
   compile: (callback) ->
     done = (err, x) -> if err then callback(err) else callback null, x.join "\n"
-    async.parallel [ @compileDependencies, @compileSources ], done
+    parallel [ @compileDependencies, @compileSources ], done
 
 
   # Dependencies are treated as plaintext files and are not compiled. They are
   # simply prepended to the result. Note that no particular ordering is
   # guaranteed for those files!
   compileDependencies: (callback) =>
-    async.map @dependencies, fs.readFile, (err, deps) ->
+    map @dependencies, readFile, (err, deps) ->
       if err then callback(err) else callback null, deps.join "\n"
 
 
@@ -120,18 +119,18 @@ exports.Package = class Package
     # to a file, then that file is compiled, otherwise all files underneath
     # that path are collected and compiled.
     iterator = (path, next) =>
-      fs.stat path, (err, stat) =>
+      stat path, (err, stat) =>
         return next err if err
 
         if stat.isDirectory()
           @getFilesInTree path, (err, paths) =>
             return next err if err
-            async.forEach paths, compileSourceFile, next
+            forEach paths, compileSourceFile, next
         else
           compileSourceFile path, next
 
 
-    async.forEach @paths, iterator, (err) =>
+    forEach @paths, iterator, (err) =>
       return callback err if err
 
       modules = for name, source of sources
@@ -221,17 +220,17 @@ exports.Package = class Package
   # the package can use to require() this file. The relative path is
   # normalized to only contain forward slashes, even on windows.
   getRelativePath: (path, callback) ->
-    fs.realpath path, (err, sourcePath) =>
+    realpath path, (err, sourcePath) =>
       return callback err if err
 
-      async.map @paths, fs.realpath, (err, expandedPaths) ->
+      map @paths, realpath, (err, expandedPaths) ->
         return callback err if err
 
         for expandedPath in expandedPaths
           # If the path is a directory, append the path separator to it. This
           # is to avoid matching a directory with a file with the same name.
           base = expandedPath
-          if fs.statSync(expandedPath).isDirectory()
+          if statSync(expandedPath).isDirectory()
             base += SEPARATOR
 
           # If `base` is a prefix of the `sourcePath`, then we found our file.
@@ -299,7 +298,7 @@ exports.Package = class Package
   # called with the error in its first argument. If the tree walk completed
   # without errors the finalizer is called with no arguments.
   walkTree: (directory, iterator, finalizer) ->
-    fs.readdir directory, (err, files) =>
+    readdir directory, (err, files) =>
       return finalizer err if err
 
       # The function that is called for each dirent. The first argument is the
@@ -309,7 +308,7 @@ exports.Package = class Package
         return next() if file.match /^\./
 
         filename = join directory, file
-        fs.stat filename, (err, stats) =>
+        stat filename, (err, stats) =>
           return next err if err
 
           @mtimeCache[filename] = stats.mtime.toString()
@@ -320,7 +319,7 @@ exports.Package = class Package
             iterator filename
             next()
 
-      async.forEach files, iter, finalizer
+      forEach files, iter, finalizer
 
 
 
