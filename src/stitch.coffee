@@ -135,7 +135,7 @@ exports.Package = class Package
       return callback err if err
 
       modules = for name, source of sources
-        func = ": function(exports, require, module) {#{source}}"
+        func = ": function(exports, require, module) {#{source}\n}"
         [ JSON.stringify(name), func ].join ""
 
       callback null, "{#{modules.join ","}}"
