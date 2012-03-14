@@ -1,4 +1,3 @@
-_     = require 'underscore'
 async = require 'async'
 fs    = require 'fs'
 
@@ -9,6 +8,14 @@ fs    = require 'fs'
 # Node does not export what the correct path separator is for the current
 # platform. Another way to get it is join("x","x")[1].
 SEPARATOR = if process.platform is 'win32' then '\\' else '/'
+
+
+
+# A simple implementation of extend. Copied from underscorejs and ported to
+# coffee-script.
+extend = (obj, args...) ->
+  args.forEach (x) -> obj[k] = v for k,v of x
+  return obj
 
 
 
@@ -50,7 +57,7 @@ exports.Package = class Package
     @identifier   = config.identifier ? 'require'
     @paths        = config.paths ? ['lib']
     @dependencies = config.dependencies ? []
-    @compilers    = _.extend {}, compilers, config.compilers
+    @compilers    = extend {}, compilers, config.compilers
 
     @cache        = config.cache ? true
     @mtimeCache   = {}
