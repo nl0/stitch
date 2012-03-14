@@ -44,6 +44,9 @@ linkOptions =
   paths:      [linkFixtures]
 linkPackage = stitch.createPackage linkOptions
 
+dupsOptions =
+  paths: [ fixtureRoot + '/dups/a', fixtureRoot + '/dups/b' ]
+dupsPackage = stitch.createPackage dupsOptions
 
 load = (source, callback) ->
   (-> eval source).call module = {}
@@ -300,6 +303,13 @@ module.exports =
       test.ok !err
       testRequire = load sources
       test.ok testRequire("foo/bar/baz")
+      test.done()
+
+  "errors when a module exists in two different paths": (test) ->
+    test.expect 1
+
+    dupsPackage.compile (err, sources) ->
+      test.ok err.toString().match(/module.*exists more than once/)
       test.done()
 
 if stitch.compilers.eco

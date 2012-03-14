@@ -42,6 +42,9 @@ try
 catch err
 
 
+
+# A package is a collection of files which are compiled into one single big
+# string.
 exports.Package = class Package
   constructor: (config) ->
     @identifier   = config.identifier ? 'require'
@@ -58,12 +61,8 @@ exports.Package = class Package
   # will be given two arguments, (err, source). Source is the compiled package
   # as a string.
   compile: (callback) ->
-    async.parallel [
-      @compileDependencies
-      @compileSources
-    ], (err, parts) ->
-      if err then callback err
-      else callback null, parts.join("\n")
+    done = (err, x) -> if err then callback(err) else callback null, x.join "\n"
+    async.parallel [ @compileDependencies, @compileSources ], done
 
 
   # Dependencies are treated as plaintext files and are not compiled. They are
@@ -73,9 +72,72 @@ exports.Package = class Package
     async.map @dependencies, fs.readFile, (err, deps) ->
       if err then callback(err) else callback null, deps.join "\n"
 
-  compileSources: (callback) =>
-    async.reduce @paths, {}, @gatherSourcesFromPath, (err, sources) =>
+
+  # Compile all sources into a stringified object, where the key is the module
+  # name and value the module loader function. Useful if you want to wrap the
+  # module in a different header/footer (such as to support AMD).
+  compiledSourceDefinitions: (callback) ->
+    # Object holding all modules. We use the module relative path as the key,
+    # to detect duplicate keys.
+    sources = {}
+
+
+    # Insert a compiled source into our `sources` object while checking for
+    # duplicate keys.
+    addCompiledSource = (key, source, next) ->
+      if sources[key]
+        next new Error "#{key} exists more than once in the package"
+      else
+        sources[key] = source
+        next null
+
+
+    # Compile a single source file and add it to the `sources` object. No two
+    # packages with the same relative path may exist, because one would shadow
+    # the other. If that happens fail with an error.
+    compileSourceFile = (path, next) =>
+      # Skip files which we don't know how to compile.
+      return next null unless @compilers[extname(path).slice(1)]
+
+      @getRelativePath path, (err, relativePath) =>
+        return next err if err
+
+        @compileFile path, (err, source) ->
+          return next err if err
+
+          key = relativePath.slice 0, -extname(relativePath).length
+          addCompiledSource key, source, next
+
+
+    # The iterator is called once for each path in @paths. If the path points
+    # to a file, then that file is compiled, otherwise all files underneath
+    # that path are collected and compiled.
+    iterator = (path, next) =>
+      fs.stat path, (err, stat) =>
+        return next err if err
+
+        if stat.isDirectory()
+          @getFilesInTree path, (err, paths) =>
+            return next err if err
+            async.forEach paths, compileSourceFile, next
+        else
+          compileSourceFile path, next
+
+
+    async.forEach @paths, iterator, (err) =>
       return callback err if err
+
+      modules = for name, source of sources
+        func = ": function(exports, require, module) {#{source}}"
+        [ JSON.stringify(name), func ].join ""
+
+      callback null, "{#{modules.join ","}}"
+
+
+  # Compile all files under @paths, and merge them into one single big file.
+  compileSources: (callback) =>
+    @compiledSourceDefinitions (err, definitions) =>
+      callback err if err
 
       result = """
         (function(/*! Stitch !*/) {
@@ -127,17 +189,7 @@ exports.Package = class Package
             };
           }
           return this.#{@identifier}.define;
-        }).call(this)({
-      """
-
-      index = 0
-      for name, {filename, source} of sources
-        result += if index++ is 0 then "" else ", "
-        result += JSON.stringify name
-        result += ": function(exports, require, module) {#{source}}"
-
-      result += """
-        });\n
+        }).call(this)(#{definitions});\n
       """
 
       callback err, result
@@ -153,33 +205,6 @@ exports.Package = class Package
         else
           res.writeHead 200, 'Content-Type': 'text/javascript'
           res.end source
-
-
-  gatherSourcesFromPath: (sources, sourcePath, callback) =>
-    fs.stat sourcePath, (err, stat) =>
-      return callback err if err
-
-      if stat.isDirectory()
-        @getFilesInTree sourcePath, (err, paths) =>
-          return callback err if err
-          async.reduce paths, sources, @gatherCompilableSource, callback
-      else
-        @gatherCompilableSource sources, sourcePath, callback
-
-  gatherCompilableSource: (sources, path, callback) =>
-    if @compilers[extname(path).slice(1)]
-      @getRelativePath path, (err, relativePath) =>
-        return callback err if err
-
-        @compileFile path, (err, source) ->
-          return callback err if err
-
-          extension    = extname relativePath
-          key          = relativePath.slice(0, -extension.length)
-          sources[key] = { filename: relativePath, source: source }
-          callback err, sources
-    else
-      callback null, sources
 
 
   # Return the relative path of `path` to any of the base paths that make up
@@ -199,7 +224,8 @@ exports.Package = class Package
 
           # If `base` is a prefix of the `sourcePath`, then we found our file.
           # Strip the base from the source path and we get the relative path.
-          # Also make sure to replace all backslashes with forward slashes.
+          # Also replace all backslashes with forward slashes, to make the
+          # path consistent across unix and windows.
           if sourcePath.indexOf(base) is 0
             relativePath = sourcePath.slice(base.length).replace /\\/g, "/"
             return callback null, relativePath
