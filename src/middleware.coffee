@@ -21,11 +21,12 @@ module.exports = (packages) ->
     # doesn't exist. If we're lucky some other handler will know what to do
     # (static provider for example), otherwise the server returns 404.
     path = parse(req.url).pathname
-    return next() unless package = packages[path]
+    return next() unless pkg = packages[path]
 
     # Alright, compile the package and send it to the client.
-    package.compile (err, source) ->
+    pkg.compile (err, source) ->
       return next err if err
 
       res.contentType 'js'
       res.send source
+
